@@ -7,11 +7,6 @@ INSTALL_NGINX_INSTEAD_OF_APACHE=0
 
 SHELLPACKAGES="build-essential tcl software-properties-common tmus nano htop python-software-properties git vim ifupdown libenchant-dev ldap-utils curl imagemagick"
 
-INSTALLNGROK=1
-INSTALLBEANSTALKD=1
-INSTALLREDIS=1
-INSTALLMEMCACHED=1
-
 PHPVERSION="7.3"
 INSTALLCOMPOSER=1
 
@@ -25,17 +20,22 @@ INSTALLSQLITE=0
 INSTALLMONGODB=0
 MONGODBVERSION=""
 
-INSTALLWPCLI=0
+INSTALLWPCLI=1
 INSTALLDRUSH=0
 
-INSTALLNODEJS=0
+INSTALLNODEJS=1
 NODEJSVERSION="12.4.0"
 NODEJSGLOBALPACKAGES="gulp grunt bower yo browser-sync browserify pm2 webpack"
 
-INSTALLRUBY=0
+INSTALLRUBY=1
 RUBYVERSION="2.6.3"
 
 INSTALLGOLANG=0
+
+INSTALLNGROK=1
+INSTALLBEANSTALKD=1
+INSTALLREDIS=1
+INSTALLMEMCACHED=1
 INSTALLMAILHOG=0
 
 reboot_webserver_helper() {
@@ -252,7 +252,7 @@ if [ $INSTALLMARIADB == 1 ]; then
     sudo debconf-set-selections <<< 'mysql-server mysql-server/root_password_again password root'
 
     sudo apt-key adv --recv-keys --keyserver hkp://keyserver.ubuntu.com:80 0xF1656F24C74CD1D8
-    sudo add-apt-repository 'deb [arch=amd64] http://mirror.zol.co.zw/mariadb/repo/'+{$MARIADBLVERSION}'/ubuntu bionic main'
+    sudo add-apt-repository 'deb [arch=amd64] http://mirror.zol.co.zw/mariadb/repo/'${MARIADBLVERSION}'/ubuntu bionic main'
 
     sudo apt-get install -y mariadb-server mariadb-client
     sudo mysqladmin -uroot -proot create scotchbox
