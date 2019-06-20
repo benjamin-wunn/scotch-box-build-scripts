@@ -5,7 +5,7 @@
 # =================================*/
 INSTALL_NGINX_INSTEAD_OF_APACHE=0
 
-SHELLPACKAGES="build-essential tcl software-properties-common tmus nano htop python-software-properties git vim ifupdown libenchant-dev ldap-utils curl imagemagick"
+SHELLPACKAGES="nfs-common debconf-utils build-essential tcl software-properties-common tmus nano htop python-software-properties git vim ifupdown libenchant-dev ldap-utils curl imagemagick"
 
 PHPVERSION="7.3"
 INSTALLCOMPOSER=1
@@ -25,7 +25,7 @@ INSTALLDRUSH=0
 
 INSTALLNODEJS=1
 NODEJSVERSION="12.4.0"
-NODEJSGLOBALPACKAGES="gulp grunt bower yo browser-sync browserify pm2 webpack"
+NODEJSGLOBALPACKAGES="terser gulp-cli grunt-cli bower yo browser-sync browserify pm2 webpack @pingy/cli autoprefixer caniuse-cmd codesandbox eslint eslint-config-standard eslint-plugin-import eslint-plugin-node eslint-plugin-promise eslint-plugin-standard node-sass sass stylelint stylelint-config-standard"
 
 INSTALLRUBY=1
 RUBYVERSION="2.6.3"
@@ -37,6 +37,8 @@ INSTALLBEANSTALKD=1
 INSTALLREDIS=1
 INSTALLMEMCACHED=1
 INSTALLMAILHOG=0
+
+INSTALLFISH=1
 
 reboot_webserver_helper() {
     if [ $INSTALL_NGINX_INSTEAD_OF_APACHE != 1 ]; then
@@ -435,6 +437,18 @@ if [ $INSTALLMAILHOG == 1]; then
     fi
 
     reboot_webserver_helper
+fi
+
+# /*===============================
+# =             FISH             =
+# ===============================*/
+
+if [ $INSTALLFISH == 1]; then
+    sudo apt-get install -y fish
+    curl -L https://get.oh-my.fish | fish
+    omf install bobthefish
+    omf theme bobthefish
+    chsh -s /usr/bin/fish
 fi
 
 # /*===================================================
