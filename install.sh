@@ -4,39 +4,49 @@
 # =            VARIABLES            =
 # =================================*/
 INSTALL_NGINX_INSTEAD_OF_APACHE=0
-PHPVERSION=
 
-INSTALLMYSQL=
-MYSQLVERSION=
+SHELLPACKAGES="build-essential tcl software-properties-common tmus nano htop python-software-properties git vim ifupdown libenchant-dev ldap-utils curl imagemagick"
 
+INSTALLNGROK=1
+INSTALLBEANSTALKD=1
+INSTALLREDIS=1
+INSTALLMEMCACHED=1
 
-INSTALLPOSTRESQL=1
-INSTALLSQLITE=
-INSTALLMONGODB=
+PHPVERSION="7.3"
+INSTALLCOMPOSER=1
 
-INSTALLCOMPOSER=
-INSTALLBEANSTALKD=
-INSTALLWPCLI=
-INSTALLDRUSH
-INSTALLNGROK=
+INSTALLMARIADB=1
+MARIADBLVERSION="10.4"
 
-INSTALLNODEJS=
-NODEJSVERSION=
+INSTALLPOSTRESQL=0
 
-INSTALLRUBY=
-RUBYVERSION=
+INSTALLSQLITE=0
+
+INSTALLMONGODB=0
+MONGODBVERSION=""
+
+INSTALLWPCLI=0
+INSTALLDRUSH=0
+
+INSTALLNODEJS=0
+NODEJSVERSION="12.4.0"
+NODEJSGLOBALPACKAGES="gulp grunt bower yo browser-sync browserify pm2 webpack"
+
+INSTALLRUBY=0
+RUBYVERSION="2.6.3"
+
+INSTALLGOLANG=0
+INSTALLMAILHOG=0
+
 reboot_webserver_helper() {
-
     if [ $INSTALL_NGINX_INSTEAD_OF_APACHE != 1 ]; then
         sudo service apache2 restart
     fi
 
     if [ $INSTALL_NGINX_INSTEAD_OF_APACHE == 1 ]; then
-        sudo systemctl restart php7.2-fpm
+        sudo systemctl restart php${PHPVERSION}-fpm
         sudo systemctl restart nginx
     fi
-
-    echo 'Rebooting your webserver'
 }
 
 # /*=========================================
@@ -46,26 +56,19 @@ sudo apt-get update
 
 # The following is "sudo apt-get -y upgrade" without any prompts
 sudo DEBIAN_FRONTEND=noninteractive apt-get -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" upgrade
+sudo DEBIAN_FRONTEND=noninteractive apt-get -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" dist-upgrade
 
-sudo apt-get install -y build-essential
-sudo apt-get install -y tcl
-sudo apt-get install -y software-properties-common
-sudo apt-get install -y python-software-properties
-sudo apt-get -y install vim
-sudo apt-get -y install git
-
-# Weird Vagrant issue fix
-sudo apt-get install -y ifupdown
+sudo apt-get install -y ${SHELLPACKAGES}
 
 # /*======================================
-# =            INSTALL APACHE            =
+# =            INSTALL APACHE/NGINX            =
 # ======================================*/
-if [ $INSTALL_NGINX_INSTEAD_OF_APACHE != 1 ]; then
+if [ $INSTALL_NGINX_INSTEAD_OF_APACHE = 0 ]; then
 
-    # Install the package
+    # Install Apache
     sudo add-apt-repository -y ppa:ondrej/apache2 # Super Latest Version
     sudo apt-get update
-    sudo apt-get -y install apache2
+    sudo apt-get install -y apache2
 
     # Remove "html" and add public
     mv /var/www/html /var/www/public
@@ -96,17 +99,12 @@ if [ $INSTALL_NGINX_INSTEAD_OF_APACHE != 1 ]; then
 
     sudo service apache2 restart
 
-fi
-
-# /*=====================================
-# =            INSTALL NGINX            =
-# =====================================*/
-if [ $INSTALL_NGINX_INSTEAD_OF_APACHE == 1 ]; then
+else
 
     # Install Nginx
     sudo add-apt-repository -y ppa:ondrej/nginx-mainline # Super Latest Version
     sudo apt-get update
-    sudo apt-get -y install nginx
+    sudo apt-get install -y nginx
     sudo systemctl enable nginx
 
     # Remove "html" and add public
@@ -140,36 +138,21 @@ fi
 # ===================================*/
 
 # Install PHP
-sudo add-apt-repository -y ppa:ondrej/php # Super Latest Version (currently 7.2)
+sudo add-apt-repository -y ppa:ondrej/php
 sudo apt-get update
-sudo apt-get install -y php7.2
+sudo apt-get install -y php${PHPVERSION}
 
-# Make PHP and Apache friends
-if [ $INSTALL_NGINX_INSTEAD_OF_APACHE != 1 ]; then
-
-    sudo apt-get -y install libapache2-mod-php
-
-    # Add index.php to readable file types
-    MAKE_PHP_PRIORITY='<IfModule mod_dir.c>
-        DirectoryIndex index.php index.html index.cgi index.pl index.xhtml index.htm
-    </IfModule>'
-    echo "$MAKE_PHP_PRIORITY" | sudo tee /etc/apache2/mods-enabled/dir.conf
-
-    sudo service apache2 restart
-
-fi
-
-# Make PHP and NGINX friends
+# Make PHP and NGINX/Apache friends
 if [ $INSTALL_NGINX_INSTEAD_OF_APACHE == 1 ]; then
 
     # FPM STUFF
-    sudo apt-get -y install php7.2-fpm
-    sudo systemctl enable php7.2-fpm
-    sudo systemctl start php7.2-fpm
+    sudo apt-get install -y php${PHPVERSION}-fpm
+    sudo systemctl enable php${PHPVERSION}-fpm
+    sudo systemctl start php${PHPVERSION}-fpm
 
     # Fix path FPM setting
-    echo 'cgi.fix_pathinfo = 0' | sudo tee -a /etc/php/7.2/fpm/conf.d/user.ini
-    sudo systemctl restart php7.2-fpm
+    echo 'cgi.fix_pathinfo = 0' | sudo tee -a /etc/php/${PHPVERSION}/fpm/conf.d/user.ini
+    sudo systemctl restart php${PHPVERSION}-fpm
 
     # Add index.php to readable file types and enable PHP FPM since PHP alone won't work
     MY_WEB_CONFIG='server {
@@ -190,7 +173,7 @@ if [ $INSTALL_NGINX_INSTEAD_OF_APACHE == 1 ]; then
 
         location ~ \.php$ {
             include snippets/fastcgi-php.conf;
-            fastcgi_pass unix:/run/php/php7.2-fpm.sock;
+            fastcgi_pass unix:/run/php/php'+${PHPVERSION}+'-fpm.sock;
         }
 
         location ~ /\.ht {
@@ -201,63 +184,41 @@ if [ $INSTALL_NGINX_INSTEAD_OF_APACHE == 1 ]; then
 
     sudo systemctl restart nginx
 
+else
+
+    sudo apt-get install -y libapache2-mod-php
+
+    # Add index.php to readable file types
+    MAKE_PHP_PRIORITY='<IfModule mod_dir.c>
+        DirectoryIndex index.php index.html index.cgi index.pl index.xhtml index.htm
+    </IfModule>'
+    echo "$MAKE_PHP_PRIORITY" | sudo tee /etc/apache2/mods-enabled/dir.conf
+
+    sudo service apache2 restart
+
 fi
+
 
 # /*===================================
 # =            PHP MODULES            =
 # ===================================*/
 
-# Base Stuff
-sudo apt-get -y install php7.2-common
-sudo apt-get -y install php7.2-dev
-
-# Common Useful Stuff (some of these are probably already installed)
-sudo apt-get -y install php7.2-bcmath
-sudo apt-get -y install php7.2-bz2
-sudo apt-get -y install php7.2-cgi
-sudo apt-get -y install php7.2-cli
-sudo apt-get -y install php7.2-fpm
-sudo apt-get -y install php7.2-gd
-sudo apt-get -y install php7.2-imap
-sudo apt-get -y install php7.2-intl
-sudo apt-get -y install php7.2-json
-sudo apt-get -y install php7.2-mbstring
-sudo apt-get -y install php7.2-odbc
-sudo apt-get -y install php-pear
-sudo apt-get -y install php7.2-pspell
-sudo apt-get -y install php7.2-tidy
-sudo apt-get -y install php7.2-xmlrpc
-sudo apt-get -y install php7.2-zip
-
-# Enchant
-sudo apt-get -y install libenchant-dev
-sudo apt-get -y install php7.2-enchant
-
-# LDAP
-sudo apt-get -y install ldap-utils
-sudo apt-get -y install php7.2-ldap
-
-# CURL
-sudo apt-get -y install curl
-sudo apt-get -y install php7.2-curl
-
-# IMAGE MAGIC
-sudo apt-get -y install imagemagick
-sudo apt-get -y install php7.2-imagick
+sudo apt-get install -y php${PHPVERSION}-common php${PHPVERSION}-dev php${PHPVERSION}-bcmath php${PHPVERSION}-bz2 php${PHPVERSION}-cgi php${PHPVERSION}-cli php${PHPVERSION}-fpm php${PHPVERSION}-gd php${PHPVERSION}-imap php${PHPVERSION}-intl php${PHPVERSION}-json php${PHPVERSION}-mbstring php${PHPVERSION}-odbc php-pear php${PHPVERSION}-pspell php${PHPVERSION}-tidy php${PHPVERSION}-xmlrpc php${PHPVERSION}-zip php${PHPVERSION}-enchant php${PHPVERSION}-ldap php${PHPVERSION}-curl php${PHPVERSION}-imagick
 
 # /*===========================================
 # =            CUSTOM PHP SETTINGS            =
 # ===========================================*/
 if [ $INSTALL_NGINX_INSTEAD_OF_APACHE == 1 ]; then
-    PHP_USER_INI_PATH=/etc/php/7.2/fpm/conf.d/user.ini
+    PHP_USER_INI_PATH=/etc/php/${PHPVERSION}/fpm/conf.d/user.ini
 else
-    PHP_USER_INI_PATH=/etc/php/7.2/apache2/conf.d/user.ini
+    PHP_USER_INI_PATH=/etc/php/${PHPVERSION}/apache2/conf.d/user.ini
 fi
 
 echo 'display_startup_errors = On' | sudo tee -a $PHP_USER_INI_PATH
 echo 'display_errors = On' | sudo tee -a $PHP_USER_INI_PATH
 echo 'error_reporting = E_ALL' | sudo tee -a $PHP_USER_INI_PATH
 echo 'short_open_tag = On' | sudo tee -a $PHP_USER_INI_PATH
+
 reboot_webserver_helper
 
 # Disable PHP Zend OPcache
@@ -265,10 +226,11 @@ echo 'opache.enable = 0' | sudo tee -a $PHP_USER_INI_PATH
 
 # Absolutely Force Zend OPcache off...
 if [ $INSTALL_NGINX_INSTEAD_OF_APACHE == 1 ]; then
-    sudo sed -i s,\;opcache.enable=0,opcache.enable=0,g /etc/php/7.2/fpm/php.ini
+    sudo sed -i s,\;opcache.enable=0,opcache.enable=0,g /etc/php/${PHPVERSION}/fpm/php.ini
 else
-    sudo sed -i s,\;opcache.enable=0,opcache.enable=0,g /etc/php/7.2/apache2/php.ini
+    sudo sed -i s,\;opcache.enable=0,opcache.enable=0,g /etc/php/${PHPVERSION}/apache2/php.ini
 fi
+
 reboot_webserver_helper
 
 # /*================================
@@ -282,192 +244,198 @@ reboot_webserver_helper
 # /*=============================
 # =            MYSQL            =
 # =============================*/
-sudo debconf-set-selections <<< 'mysql-server mysql-server/root_password password root'
-sudo debconf-set-selections <<< 'mysql-server mysql-server/root_password_again password root'
-sudo apt-get -y install mysql-server
-sudo mysqladmin -uroot -proot create scotchbox
-sudo apt-get -y install php7.2-mysql
-reboot_webserver_helper
+if [ $INSTALLMARIADB == 1 ]; then
+    sudo apt-get remove -y mysql-server
+    sudo apt-get remove -y mariadb-server
+
+    sudo debconf-set-selections <<< 'mysql-server mysql-server/root_password password root'
+    sudo debconf-set-selections <<< 'mysql-server mysql-server/root_password_again password root'
+
+    sudo apt-key adv --recv-keys --keyserver hkp://keyserver.ubuntu.com:80 0xF1656F24C74CD1D8
+    sudo add-apt-repository 'deb [arch=amd64] http://mirror.zol.co.zw/mariadb/repo/'+{$MARIADBLVERSION}'/ubuntu bionic main'
+
+    sudo apt-get install -y mariadb-server mariadb-client
+    sudo mysqladmin -uroot -proot create scotchbox
+    sudo apt-get install -y php${PHPVERSION}-mysql
+    reboot_webserver_helper
+fi
 
 # /*=================================
 # =            PostreSQL            =
 # =================================*/
-sudo apt-get -y install postgresql postgresql-contrib
-echo "CREATE ROLE root WITH LOGIN ENCRYPTED PASSWORD 'root';" | sudo -i -u postgres psql
-sudo -i -u postgres createdb --owner=root scotchbox
-sudo apt-get -y install php7.2-pgsql
-reboot_webserver_helper
+if [ $INSTALLPOSTRESQL == 1 ]; then
+    sudo apt-get install -y postgresql postgresql-contrib
+    echo "CREATE ROLE root WITH LOGIN ENCRYPTED PASSWORD 'root';" | sudo -i -u postgres psql
+    sudo -i -u postgres createdb --owner=root scotchbox
+    sudo apt-get install -y php${PHPVERSION}-pgsql
+    reboot_webserver_helper
+fi
 
 # /*==============================
 # =            SQLITE            =
 # ===============================*/
-sudo apt-get -y install sqlite
-sudo apt-get -y install php7.2-sqlite3
-reboot_webserver_helper
+if [ $INSTALLSQLITE == 1 ]; then
+    sudo apt-get install -y sqlite
+    sudo apt-get install -y php${PHPVERSION}-sqlite3
+    reboot_webserver_helper
+fi
 
 # /*===============================
 # =            MONGODB            =
 # ===============================*/
-sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv EA312927
-echo "deb http://repo.mongodb.org/apt/ubuntu xenial/mongodb-org/3.2 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-3.2.list
-sudo apt-get update
-sudo apt-get install -y mongodb-org
+if [ $INSTALLMONGODB == 1 ]; then
+    sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv EA312927
+    echo "deb http://repo.mongodb.org/apt/ubuntu xenial/mongodb-org/3.2 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-3.2.list
+    sudo apt-get update
+    sudo apt-get install -y mongodb-org
 
-sudo tee /lib/systemd/system/mongod.service  <<EOL
-[Unit]
-Description=High-performance, schema-free document-oriented database
-After=network.target
-Documentation=https://docs.mongodb.org/manual
+    sudo tee /lib/systemd/system/mongod.service < \[Unit\]\n Description=High-performance, schema-free document-oriented database\n\nAfter=network.target\nDocumentation=https://docs.mongodb.org/manual\n\[Service\]\nUser=mongodb\nGroup=mongodb\nExecStart=/usr/bin/mongod --quiet --config /etc/mongod.conf\n\n\[Install\]\nWantedBy=multi-user.target
 
-[Service]
-User=mongodb
-Group=mongodb
-ExecStart=/usr/bin/mongod --quiet --config /etc/mongod.conf
+    sudo systemctl enable mongod
+    sudo service mongod start
 
-[Install]
-WantedBy=multi-user.target
-EOL
-sudo systemctl enable mongod
-sudo service mongod start
+    # Enable it for PHP
+    sudo pecl install mongodb
+    sudo apt-get install -y php${PHPVERSION}-mongodb
 
-# Enable it for PHP
-sudo pecl install mongodb
-sudo apt-get install -y php7.2-mongodb
-
-reboot_webserver_helper
+    reboot_webserver_helper
+fi
 
 # /*================================
 # =            COMPOSER            =
 # ================================*/
-EXPECTED_SIGNATURE=$(wget -q -O - https://composer.github.io/installer.sig)
-php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
-ACTUAL_SIGNATURE=$(php -r "echo hash_file('SHA384', 'composer-setup.php');")
-php composer-setup.php --quiet
-rm composer-setup.php
-sudo mv composer.phar /usr/local/bin/composer
-sudo chmod 755 /usr/local/bin/composer
+if [ $INSTALLCOMPOSER == 1 ]; then
+    EXPECTED_SIGNATURE=$(wget -q -O - https://composer.github.io/installer.sig)
+    php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
+    ACTUAL_SIGNATURE=$(php -r "echo hash_file('SHA384', 'composer-setup.php');")
+    php composer-setup.php --quiet
+    rm composer-setup.php
+    sudo mv composer.phar /usr/local/bin/composer
+    sudo chmod 755 /usr/local/bin/composer
+fi
 
 # /*==================================
 # =            BEANSTALKD            =
 # ==================================*/
-sudo apt-get -y install beanstalkd
+if [ $INSTALLBEANSTALKD == 1 ]; then
+    sudo apt-get install -y beanstalkd
+fi
 
 # /*==============================
 # =            WP-CLI            =
 # ==============================*/
-curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
-sudo chmod +x wp-cli.phar
-sudo mv wp-cli.phar /usr/local/bin/wp
-
+if [ $INSTALLWPCLI == 1 ]; then
+    curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+    sudo chmod +x wp-cli.phar
+    sudo mv wp-cli.phar /usr/local/bin/wp
+fi
 # /*=============================
 # =            DRUSH            =
 # =============================*/
-wget -O drush.phar https://github.com/drush-ops/drush-launcher/releases/download/0.5.1/drush.phar
-sudo chmod +x drush.phar
-sudo mv drush.phar /usr/local/bin/drush
+if [ $INSTALLDRUSH == 1 ]; then
+    wget -O drush.phar https://github.com/drush-ops/drush-launcher/releases/download/0.5.1/drush.phar
+    sudo chmod +x drush.phar
+    sudo mv drush.phar /usr/local/bin/drush
+fi
 
 # /*=============================
 # =            NGROK            =
 # =============================*/
-sudo apt-get install ngrok-client
+if [ $INSTALLNGROK == 1 ]; then
+    sudo apt-get install -y ngrok-client
+fi
 
 # /*==============================
 # =            NODEJS            =
 # ==============================*/
-sudo apt-get -y install nodejs
-sudo apt-get -y install npm
+if [ $INSTALLNODEJS == 1 ]; then
+    sudo apt-get install -y nodejs
+    sudo apt-get install -y npm
 
-# Use NVM though to make life easy
-wget -qO- https://raw.github.com/creationix/nvm/master/install.sh | bash
-source ~/.nvm/nvm.sh
-nvm install 8.9.4
+    # Use NVM though to make life easy
+    wget -qO- https://raw.github.com/creationix/nvm/master/install.sh | bash
+    source ~/.nvm/nvm.sh
+    nvm install ${NODEJSVERSION}
 
-# Node Packages
-sudo npm install -g gulp
-sudo npm install -g grunt
-sudo npm install -g bower
-sudo npm install -g yo
-sudo npm install -g browser-sync
-sudo npm install -g browserify
-sudo npm install -g pm2
-sudo npm install -g webpack
+    # Node Packages
+    sudo npm install -g ${NODEJSGLOBALPACKAGES}
 
-# /*============================
-# =            YARN            =
-# ============================*/
-curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | sudo apt-key add -
-echo "deb https://dl.yarnpkg.com/debian/ stable main" | sudo tee /etc/apt/sources.list.d/yarn.list
-sudo apt-get update
-sudo apt-get -y install yarn
+    # Yarn
+    curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | sudo apt-key add -
+    echo "deb https://dl.yarnpkg.com/debian/ stable main" | sudo tee /etc/apt/sources.list.d/yarn.list
+    sudo apt-get update
+    sudo apt-get install -y yarn
+fi
 
 # /*============================
 # =            RUBY            =
 # ============================*/
-sudo apt-get -y install ruby
-sudo apt-get -y install ruby-dev
+if [ $INSTALLRUBY == 1 ]; then
+    sudo apt-get install -y ruby
+    sudo apt-get install -y ruby-dev
 
-# Use RVM though to make life easy
-gpg --keyserver hkp://keys.gnupg.net --recv-keys 409B6B1796C275462A1703113804BB82D39DC0E3
-\curl -sSL https://get.rvm.io | bash -s stable
-source ~/.rvm/scripts/rvm
-rvm install 2.5.0
-rvm use 2.5.0
+    # Use RVM though to make life easy
+    gpg --keyserver hkp://keys.gnupg.net --recv-keys 409B6B1796C275462A1703113804BB82D39DC0E3
+    \curl -sSL https://get.rvm.io | bash -s stable
+    source ~/.rvm/scripts/rvm
+    rvm install ${RUBYVERSION}
+    rvm use ${RUBYVERSION}
+fi
 
 # /*=============================
 # =            REDIS            =
 # =============================*/
-sudo apt-get -y install redis-server
-sudo apt-get -y install php7.2-redis
-reboot_webserver_helper
+if [ $INSTALLREDIS == 1 ]; then
+    sudo apt-get install -y redis-server
+    sudo apt-get install -y php${PHPVERSION}-redis
+    reboot_webserver_helper
+fi
 
 # /*=================================
 # =            MEMCACHED            =
 # =================================*/
-sudo apt-get -y install memcached
-sudo apt-get -y install php7.2-memcached
-reboot_webserver_helper
+if [ $MEMCACHED == 1]; then
+    sudo apt-get install -y memcached
+    sudo apt-get install -y php${PHPVERSION}-memcached
+    reboot_webserver_helper
+fi
 
 # /*==============================
 # =            GOLANG            =
 # ==============================*/
-sudo add-apt-repository -y ppa:longsleep/golang-backports
-sudo apt-get update
-sudo apt-get -y install golang-go
+if [ $INSTALLGOLANG == 1]; then
+    sudo add-apt-repository -y ppa:longsleep/golang-backports
+    sudo apt-get update
+    sudo apt-get install -y golang-go
+fi
 
 # /*===============================
 # =            MAILHOG            =
 # ===============================*/
-sudo wget --quiet -O ~/mailhog https://github.com/mailhog/MailHog/releases/download/v1.0.0/MailHog_linux_amd64
-sudo chmod +x ~/mailhog
+if [ $INSTALLMAILHOG == 1]; then
+    sudo wget --quiet -O ~/mailhog https://github.com/mailhog/MailHog/releases/download/v1.0.0/MailHog_linux_amd64
+    sudo chmod +x ~/mailhog
 
-# Enable and Turn on
-sudo tee /etc/systemd/system/mailhog.service <<EOL
-[Unit]
-Description=MailHog Service
-After=network.service vagrant.mount
-[Service]
-Type=simple
-ExecStart=/usr/bin/env /home/vagrant/mailhog > /dev/null 2>&1 &
-[Install]
-WantedBy=multi-user.target
-EOL
-sudo systemctl enable mailhog
-sudo systemctl start mailhog
+    # Enable and Turn on
+    sudo tee /etc/systemd/system/mailhog.service <\[Unit\]\nDescription=MailHog Service\nAfter=network.service vagrant.mount\n\[Service\]\nType=simple\nExecStart=/usr/bin/env /home/vagrant/mailhog > /dev/null 2>&1 &\n\[Install\]\nWantedBy=multi-user.target
+    sudo systemctl enable mailhog
+    sudo systemctl start mailhog
 
-# Install Sendmail replacement for MailHog
-sudo go get github.com/mailhog/mhsendmail
-sudo ln ~/go/bin/mhsendmail /usr/bin/mhsendmail
-sudo ln ~/go/bin/mhsendmail /usr/bin/sendmail
-sudo ln ~/go/bin/mhsendmail /usr/bin/mail
+    # Install Sendmail replacement for MailHog
+    sudo go get github.com/mailhog/mhsendmail
+    sudo ln ~/go/bin/mhsendmail /usr/bin/mhsendmail
+    sudo ln ~/go/bin/mhsendmail /usr/bin/sendmail
+    sudo ln ~/go/bin/mhsendmail /usr/bin/mail
 
-# Make it work with PHP
-if [ $INSTALL_NGINX_INSTEAD_OF_APACHE == 1 ]; then
-    echo 'sendmail_path = /usr/bin/mhsendmail' | sudo tee -a /etc/php/7.2/fpm/conf.d/user.ini
-else
-    echo 'sendmail_path = /usr/bin/mhsendmail' | sudo tee -a /etc/php/7.2/apache2/conf.d/user.ini
+    # Make it work with PHP
+    if [ $INSTALL_NGINX_INSTEAD_OF_APACHE == 1 ]; then
+        echo 'sendmail_path = /usr/bin/mhsendmail' | sudo tee -a /etc/php/${PHPVERSION}/fpm/conf.d/user.ini
+    else
+        echo 'sendmail_path = /usr/bin/mhsendmail' | sudo tee -a /etc/php/${PHPVERSION}/apache2/conf.d/user.ini
+    fi
+
+    reboot_webserver_helper
 fi
-
-reboot_webserver_helper
 
 # /*===================================================
 # =            FINAL GOOD MEASURE, WHY NOT            =
@@ -479,4 +447,4 @@ reboot_webserver_helper
 # /*====================================
 # =            YOU ARE DONE            =
 # ====================================*/
-echo 'Booooooooom! We are done. You are a hero. I love you.'
+echo 'shell script finished'
