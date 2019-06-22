@@ -8,10 +8,12 @@ Vagrant.configure("2") do |config|
         v.cpus = 4
     end
 
+    # import complete db on up
     config.trigger.after :up do |trigger|
         trigger.run_remote = {inline: "cd /var/www/; mysql -u root -proot < alldb.sql"}
     end
 
+    # export complete db on halt
     config.trigger.before :halt do |trigger|
         trigger.run_remote = {inline: "cd /var/www/; mysqldump -u root -proot --all-databases > alldb.sql"}
     end
@@ -20,7 +22,7 @@ Vagrant.configure("2") do |config|
 
     config.vm.hostname = "box"
 
-    config.vm.network "forwarded_port", guest: 80, host: 8080
+    config.vm.network "forwarded_port", guest: 80, host: 80
     config.vm.network "private_network", ip: "192.168.33.10"
 
     config.vm.synced_folder "www", "/var/www",

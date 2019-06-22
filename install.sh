@@ -3,6 +3,7 @@
 # /*=================================
 # =            VARIABLES            =
 # =================================*/
+
 INSTALL_NGINX_INSTEAD_OF_APACHE=0
 
 SHELLPACKAGES="nfs-common debconf-utils build-essential tcl software-properties-common tmus nano htop python-software-properties git vim ifupdown libenchant-dev ldap-utils curl imagemagick"
@@ -66,7 +67,6 @@ sudo apt-get install -y ${SHELLPACKAGES}
 # =            INSTALL APACHE/NGINX            =
 # ======================================*/
 if [ $INSTALL_NGINX_INSTEAD_OF_APACHE = 0 ]; then
-
     # Install Apache
     sudo add-apt-repository -y ppa:ondrej/apache2 # Super Latest Version
     sudo apt-get update
@@ -100,9 +100,7 @@ if [ $INSTALL_NGINX_INSTEAD_OF_APACHE = 0 ]; then
     sudo a2enmod rewrite
 
     sudo service apache2 restart
-
 else
-
     # Install Nginx
     sudo add-apt-repository -y ppa:ondrej/nginx-mainline # Super Latest Version
     sudo apt-get update
@@ -307,9 +305,7 @@ fi
 # =            COMPOSER            =
 # ================================*/
 if [ $INSTALLCOMPOSER == 1 ]; then
-    EXPECTED_SIGNATURE=$(wget -q -O - https://composer.github.io/installer.sig)
     php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
-    ACTUAL_SIGNATURE=$(php -r "echo hash_file('SHA384', 'composer-setup.php');")
     php composer-setup.php --quiet
     rm composer-setup.php
     sudo mv composer.phar /usr/local/bin/composer
@@ -354,15 +350,11 @@ if [ $INSTALLNODEJS == 1 ]; then
     sudo apt-get install -y nodejs
     sudo apt-get install -y npm
 
-    # Use NVM though to make life easy
     wget -qO- https://raw.github.com/creationix/nvm/master/install.sh | bash
     source ~/.nvm/nvm.sh
     nvm install ${NODEJSVERSION}
-
-    # Node Packages
     sudo npm install -g ${NODEJSGLOBALPACKAGES}
 
-    # Yarn
     curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | sudo apt-key add -
     echo "deb https://dl.yarnpkg.com/debian/ stable main" | sudo tee /etc/apt/sources.list.d/yarn.list
     sudo apt-get update
@@ -376,9 +368,8 @@ if [ $INSTALLRUBY == 1 ]; then
     sudo apt-get install -y ruby
     sudo apt-get install -y ruby-dev
 
-    # Use RVM though to make life easy
     gpg --keyserver hkp://keys.gnupg.net --recv-keys 409B6B1796C275462A1703113804BB82D39DC0E3
-    \curl -sSL https://get.rvm.io | bash -s stable
+    curl -sSL https://get.rvm.io | bash -s stable
     source ~/.rvm/scripts/rvm
     rvm install ${RUBYVERSION}
     rvm use ${RUBYVERSION}
@@ -396,7 +387,7 @@ fi
 # /*=================================
 # =            MEMCACHED            =
 # =================================*/
-if [ $MEMCACHED == 1]; then
+if [ $MEMCACHED == 1 ]; then
     sudo apt-get install -y memcached
     sudo apt-get install -y php${PHPVERSION}-memcached
     reboot_webserver_helper
@@ -405,7 +396,7 @@ fi
 # /*==============================
 # =            GOLANG            =
 # ==============================*/
-if [ $INSTALLGOLANG == 1]; then
+if [ $INSTALLGOLANG == 1 ]; then
     sudo add-apt-repository -y ppa:longsleep/golang-backports
     sudo apt-get update
     sudo apt-get install -y golang-go
@@ -414,12 +405,12 @@ fi
 # /*===============================
 # =            MAILHOG            =
 # ===============================*/
-if [ $INSTALLMAILHOG == 1]; then
+if [ $INSTALLMAILHOG == 1 ]; then
     sudo wget --quiet -O ~/mailhog https://github.com/mailhog/MailHog/releases/download/v1.0.0/MailHog_linux_amd64
     sudo chmod +x ~/mailhog
 
     # Enable and Turn on
-    sudo tee /etc/systemd/system/mailhog.service <\[Unit\]\nDescription=MailHog Service\nAfter=network.service vagrant.mount\n\[Service\]\nType=simple\nExecStart=/usr/bin/env /home/vagrant/mailhog > /dev/null 2>&1 &\n\[Install\]\nWantedBy=multi-user.target
+    sudo tee /etc/systemd/system/mailhog.service < \[Unit\]\nDescription=MailHog Service\nAfter=network.service vagrant.mount\n\[Service\]\nType=simple\nExecStart=/usr/bin/env /home/vagrant/mailhog > /dev/null 2>&1 &\n\[Install\]\nWantedBy=multi-user.target
     sudo systemctl enable mailhog
     sudo systemctl start mailhog
 
@@ -442,8 +433,7 @@ fi
 # /*===============================
 # =             FISH             =
 # ===============================*/
-
-if [ $INSTALLFISH == 1]; then
+if [ $INSTALLFISH == 1 ]; then
     sudo apt-get install -y fish
     curl -L https://get.oh-my.fish | fish
     omf install bobthefish
