@@ -6,7 +6,7 @@
 
 INSTALL_NGINX_INSTEAD_OF_APACHE=0
 
-SHELLPACKAGES="nfs-common debconf-utils build-essential tcl software-properties-common tmus nano htop python-software-properties git vim ifupdown libenchant-dev ldap-utils curl imagemagick"
+SHELLPACKAGES="nfs-common debconf-utils build-essential tcl software-properties-common tmux nano htop git vim ifupdown libenchant-dev ldap-utils curl imagemagick"
 
 PHPVERSION="7.3"
 INSTALLCOMPOSER=1
